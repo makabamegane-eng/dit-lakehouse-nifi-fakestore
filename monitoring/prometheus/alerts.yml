@@ -1,0 +1,87 @@
+# =============================================================================
+#  Règles d'alerte — l'essentiel, pas l'exhaustivité.
+#  Une règle d'alerte n'a de valeur que si quelqu'un agirait en la recevant :
+#  chacune de celles-ci correspond à une panne concrète déjà rencontrée pendant
+#  la construction de la plateforme.
+# =============================================================================
+
+groups:
+
+  - name: disponibilite-plateforme
+    rules:
+      - alert: ServiceIndisponible
+        expr: up == 0
+        for: 2m
+        labels:
+          severite: critique
+        annotations:
+          resume: "Service {{ $labels.job }} injoignable"
+          description: >-
+            Prometheus ne collecte plus {{ $labels.job }} ({{ $labels.instance }})
+            depuis 2 minutes. Vérifier `docker compose ps` puis les logs du service.
+
+      - alert: NiFiSansMetriques
+        expr: absent(up{job="nifi"} == 1)
+        for: 10m
+        labels:
+          severite: avertissement
+        annotations:
+          resume: "NiFi n'expose pas ses métriques"
+          description: >-
+            La PrometheusReportingTask de NiFi ne répond pas. Le flow a-t-il été
+            construit (make nifi-flow) ? La tâche de reporting est-elle démarrée ?
+
+  - name: ingestion
+    rules:
+      - alert: AucuneDonneeIngeree
+        expr: >-
+          increase(nifi_amount_flowfiles_sent{component_type="PutS3Object"}[2h]) == 0
+        for: 30m
+        labels:
+          severite: avertissement
+        annotations:
+          resume: "Aucun objet déposé dans MinIO depuis 2 heures"
+          description: >-
+            Le flow NiFi tourne mais n'écrit plus dans la zone brute. Causes
+            fréquentes : API source indisponible, identifiants MinIO expirés,
+            file d'attente saturée par backpressure.
+
+      - alert: FilesDAttenteSaturees
+        expr: nifi_amount_flowfiles_queued > 8000
+        for: 10m
+        labels:
+          severite: avertissement
+        annotations:
+          resume: "File NiFi proche du seuil de backpressure"
+          description: >-
+            {{ $value }} FlowFiles en attente sur {{ $labels.component_name }}.
+            Le seuil de backpressure est fixé à 10 000 : au-delà, l'amont est
+            bloqué.
+
+  - name: ressources
+    rules:
+      - alert: MemoireConteneurElevee
+        expr: >-
+          container_memory_working_set_bytes{name=~"spark-worker.*|nifi|dremio"}
+          / 1024 / 1024 / 1024 > 3.5
+        for: 10m
+        labels:
+          severite: avertissement
+        annotations:
+          resume: "Conteneur {{ $labels.name }} au-dessus de 3,5 Gio"
+          description: >-
+            Risque d'OOM kill. Réduire SPARK_EXECUTOR_MEMORY ou le heap NiFi
+            dans le fichier .env.
+
+      - alert: EspaceDisqueHote
+        expr: >-
+          node_filesystem_avail_bytes{mountpoint="/host"}
+          / node_filesystem_size_bytes{mountpoint="/host"} < 0.10
+        for: 5m
+        labels:
+          severite: critique
+        annotations:
+          resume: "Moins de 10 % d'espace disque disponible"
+          description: >-
+            Les repositories NiFi et le warehouse MinIO grossissent en continu.
+            Lancer la maintenance Iceberg (compaction + expiration des snapshots).

@@ -1,0 +1,93 @@
+# =============================================================================
+#  Prometheus — supervision de la plateforme lakehouse
+# -----------------------------------------------------------------------------
+#  Trois niveaux de collecte, volontairement distincts :
+#    1. INFRASTRUCTURE — node-exporter (hôte) et cAdvisor (conteneurs) :
+#       répondent à « la machine tient-elle la charge ? »
+#    2. SERVICES       — MinIO, Nessie, Spark : répondent à « la brique
+#       est-elle saine ? »
+#    3. INGESTION      — NiFi via sa PrometheusReportingTask (bonus 7.1) :
+#       répond à « les données circulent-elles ? », la seule question
+#       réellement métier des trois.
+#
+#  Toutes les cibles sont désignées par leur NOM DE SERVICE DOCKER : c'est le
+#  DNS du réseau `lakehouse` qui fait le travail, aucune IP n'est codée en dur.
+# =============================================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    plateforme: dit-lakehouse
+    environnement: local
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+
+  # ------------------------------------------------------- 0. Prometheus ----
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+        labels: { couche: supervision }
+
+  # -------------------------------------------------- 1. Infrastructure -----
+  - job_name: node-exporter
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels: { couche: infrastructure }
+
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]
+        labels: { couche: infrastructure }
+    # cAdvisor expose une métrique par conteneur et par point de montage :
+    # sans filtrage, la base de séries temporelles double de taille en une nuit.
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: "container_(cpu_usage_seconds_total|memory_usage_bytes|memory_working_set_bytes|network_receive_bytes_total|network_transmit_bytes_total|fs_usage_bytes|last_seen)"
+        action: keep
+
+  # ------------------------------------------------------- 2. Services ------
+  - job_name: minio
+    # MINIO_PROMETHEUS_AUTH_TYPE=public dans le compose : pas de jeton à gérer
+    metrics_path: /minio/v2/metrics/cluster
+    static_configs:
+      - targets: ["minio:9000"]
+        labels: { couche: stockage }
+
+  - job_name: nessie
+    metrics_path: /q/metrics
+    static_configs:
+      - targets: ["nessie:19120"]
+        labels: { couche: catalogue }
+
+  - job_name: spark-master
+    metrics_path: /metrics/master/prometheus
+    static_configs:
+      - targets: ["spark-master:8080"]
+        labels: { couche: traitement }
+
+  - job_name: spark-applications
+    metrics_path: /metrics/applications/prometheus
+    static_configs:
+      - targets: ["spark-master:8080"]
+        labels: { couche: traitement }
+
+  # ------------------------------------------------------ 3. Ingestion ------
+  - job_name: nifi
+    # Alimenté par la PrometheusReportingTask créée par nifi/scripts/build_flow.py.
+    # Tant que le flow n'a pas été construit, cette cible est DOWN — c'est
+    # normal et attendu au premier démarrage.
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["nifi:9092"]
+        labels: { couche: ingestion }
+
+  # ------------------------------------------------------ 4. Requêtage ------
+  - job_name: dremio
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["dremio:9047"]
+        labels: { couche: requetage }

@@ -1,0 +1,229 @@
+{
+  "uid": "dit-lakehouse-overview",
+  "title": "DIT Lakehouse — Vue d'ensemble",
+  "description": "Supervision de bout en bout : infrastructure, ingestion NiFi, stockage MinIO, catalogue Nessie et cluster Spark.",
+  "tags": ["dit", "lakehouse", "nifi", "iceberg"],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "editable": true,
+  "templating": {
+    "list": [
+      {
+        "name": "conteneur",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(container_memory_working_set_bytes{name!=\"\"}, name)",
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" },
+        "label": "Conteneur"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Santé de la plateforme",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false
+    },
+    {
+      "type": "stat",
+      "title": "Cibles collectées",
+      "description": "Nombre de services répondant à Prometheus. Une cible NiFi DOWN avant la construction du flow est normale.",
+      "gridPos": { "h": 5, "w": 5, "x": 0, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "count(up == 1)", "legendFormat": "actives", "refId": "A" }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 5 },
+              { "color": "green", "value": 8 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": { "colorMode": "background", "graphMode": "none", "textMode": "value_and_name" }
+    },
+    {
+      "type": "table",
+      "title": "État par service",
+      "gridPos": { "h": 5, "w": 9, "x": 5, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "up", "format": "table", "instant": true, "refId": "A" }],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "__name__": true, "environnement": true, "plateforme": true },
+            "renameByName": { "job": "Service", "instance": "Adresse", "couche": "Couche", "Value": "Actif" }
+          }
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Mémoire résidente par conteneur",
+      "gridPos": { "h": 5, "w": 10, "x": 14, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "container_memory_working_set_bytes{name=~\"$conteneur\"}",
+          "legendFormat": "{{name}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "fillOpacity": 8 } }, "overrides": [] }
+    },
+
+    {
+      "type": "row",
+      "title": "Ingestion — Apache NiFi (bonus 7.1)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 },
+      "collapsed": false
+    },
+    {
+      "type": "timeseries",
+      "title": "Débit d'ingestion — FlowFiles traités par minute",
+      "description": "Chaque pic correspond à un déclenchement du flow par Airflow. Un plateau à zéro pendant une plage de backfill signale un blocage.",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 7 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (component_name) (rate(nifi_amount_flowfiles_sent[5m]) * 60)",
+          "legendFormat": "{{component_name}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 15 } }, "overrides": [] }
+    },
+    {
+      "type": "timeseries",
+      "title": "Files d'attente NiFi",
+      "description": "Seuil de backpressure fixé à 10 000 FlowFiles par connexion.",
+      "gridPos": { "h": 7, "w": 6, "x": 12, "y": 7 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (component_name) (nifi_amount_flowfiles_queued)",
+          "legendFormat": "{{component_name}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 5000 },
+              { "color": "red", "value": 8000 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Octets écrits vers MinIO",
+      "gridPos": { "h": 7, "w": 6, "x": 18, "y": 7 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(increase(nifi_amount_bytes_sent[1h]))",
+          "legendFormat": "dernière heure",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "options": { "colorMode": "value", "graphMode": "area" }
+    },
+
+    {
+      "type": "row",
+      "title": "Stockage — MinIO",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "collapsed": false
+    },
+    {
+      "type": "timeseries",
+      "title": "Objets par bucket",
+      "description": "lakehouse-raw croît d'un objet par domaine et par jour ingéré ; lakehouse-warehouse croît à chaque commit Iceberg.",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 15 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "minio_bucket_usage_object_total",
+          "legendFormat": "{{bucket}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10 } }, "overrides": [] }
+    },
+    {
+      "type": "timeseries",
+      "title": "Volume par bucket",
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 15 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "minio_bucket_usage_total_bytes",
+          "legendFormat": "{{bucket}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "fillOpacity": 10 } }, "overrides": [] }
+    },
+
+    {
+      "type": "row",
+      "title": "Catalogue et traitement — Nessie / Spark",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "collapsed": false
+    },
+    {
+      "type": "timeseries",
+      "title": "Requêtes HTTP Nessie",
+      "description": "Chaque commit Iceberg génère des appels au catalogue : ce graphe est un bon proxy de l'activité Spark.",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 23 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (uri) (rate(http_server_requests_seconds_count[5m]) * 60)",
+          "legendFormat": "{{uri}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] }
+    },
+    {
+      "type": "timeseries",
+      "title": "Workers Spark et applications en cours",
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 23 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "metrics_master_aliveWorkers_Value",
+          "legendFormat": "workers actifs",
+          "refId": "A"
+        },
+        {
+          "expr": "metrics_master_apps_Value",
+          "legendFormat": "applications",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 5 } }, "overrides": [] }
+    }
+  ]
+}
