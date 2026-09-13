@@ -173,7 +173,7 @@ class FlowBuilder:
 
     # ------------------------------------------------- Contexte de paramètres #
     def ensure_parameter_context(self) -> str:
-        existing = self.nifi.get("/parameter-contexts")
+        existing = self.nifi.get("/flow/parameter-contexts")
         for context in existing.get("parameterContexts", []):
             if context["component"]["name"] == PARAM_CONTEXT_NAME:
                 revision = self.nifi.revision_of(
