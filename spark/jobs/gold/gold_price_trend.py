@@ -146,7 +146,7 @@ def main() -> int:
         GOLD_TABLE,
         comment="Couche Gold - trajectoire tarifaire par produit sur la fenetre historisee",
         logger=LOG,
-        partition_by=F.expr("months(snapshot_date)"),
+        partition_by=F.col("snapshot_date"),
         sort_columns=["product_id", "snapshot_date"],
     )
     log_table_stats(spark, GOLD_TABLE, LOG)

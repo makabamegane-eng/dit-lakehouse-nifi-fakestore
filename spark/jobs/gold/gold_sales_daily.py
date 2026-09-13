@@ -222,7 +222,7 @@ def main() -> int:
         GOLD_TABLE,
         comment="Couche Gold - CA quotidien par categorie (jointure commandes x produits x clients)",
         logger=LOG,
-        partition_by=F.expr("months(order_date)"),
+        partition_by=F.col("order_date"),
         sort_columns=["order_date", "category_slug"],
     )
     log_table_stats(spark, GOLD_TABLE, LOG)

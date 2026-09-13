@@ -146,7 +146,7 @@ def main() -> int:
         GOLD_TABLE,
         comment="Couche Gold - indicateurs quotidiens du catalogue par categorie",
         logger=LOG,
-        partition_by=F.expr("months(snapshot_date)"),
+        partition_by=F.col("snapshot_date"),
         sort_columns=["snapshot_date", "category_slug"],
     )
     log_table_stats(spark, GOLD_TABLE, LOG)
