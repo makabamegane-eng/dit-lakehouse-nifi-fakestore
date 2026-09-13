@@ -569,9 +569,15 @@ def build(builder: FlowBuilder) -> None:
         pos(7, 0),
         properties={
             "ingest.epoch": "${now():toNumber()}",
-            "filename": "${domain}_${snapshot.date}_${ingest.epoch}_${UUID()}.json",
+            # UpdateAttribute evalue ses proprietes contre les attributs
+            # d'ORIGINE : une propriete ne peut pas referencer une autre posee
+            # dans le meme processeur. On construit donc la cle S3 de facon
+            # autonome (sans ${filename} ni ${ingest.epoch}), sinon la cle
+            # reprend l'UUID d'origine et Spark ne peut plus deduire la date.
+            "filename": "${domain}_${snapshot.date}_${now():toNumber()}_${UUID()}.json",
             "s3.key": (
-                "fakestore/${domain}/ingest_date=${snapshot.date}/${filename}"
+                "fakestore/${domain}/ingest_date=${snapshot.date}/"
+                "${domain}_${snapshot.date}_${now():toNumber()}_${UUID()}.json"
             ),
             "source.api": "#{api.base.url}/${domain}",
             "ingest.run.id": "${run.id}",

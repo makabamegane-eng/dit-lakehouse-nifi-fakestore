@@ -5,6 +5,10 @@ apiVersion: 1
 datasources:
   - name: Prometheus
     type: prometheus
+    # UID fixe : les tableaux de bord provisionnes referencent la source par
+    # l'UID « prometheus ». Sans cette ligne, Grafana en genere un aleatoire et
+    # tous les panneaux affichent « No data ».
+    uid: prometheus
     access: proxy
     url: http://prometheus:9090
     isDefault: true
