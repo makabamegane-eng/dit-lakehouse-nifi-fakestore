@@ -247,14 +247,55 @@ def tableau(slide, x, y, w, colonnes, lignes, largeurs, taille=13, hauteur_ligne
     return curseur_y
 
 
-def bandeau_ecran(slide, minutage: str):
-    """Bandeau des diapositives de bascule vers la démonstration live."""
+def bandeau_ecran(slide, minutage: str, acces: str = "", taille_acces: float = 11):
+    """Bandeau des diapositives de bascule vers la démonstration live.
+
+    `acces` : chaîne « URL · identifiant / mot de passe » du service démontré,
+    affichée sous le bandeau pour être disponible pendant la démo en direct.
+    """
     barre = rect(slide, Inches(0), Inches(0), L, Inches(0.34), ORANGE, MSO_SHAPE.RECTANGLE)
     barre.line.fill.background()
     texte(slide, "À L'ÉCRAN — DÉMONSTRATION EN DIRECT", MARGE, Inches(0.05),
           Inches(7.0), Inches(0.26), 13, TEXTE_SOMBRE, True)
     texte(slide, minutage, Inches(9.4), Inches(0.05), Inches(3.2), Inches(0.26),
           13, TEXTE_SOMBRE, True, align=PP_ALIGN.RIGHT)
+
+    if acces:
+        bande = rect(slide, Inches(0), Inches(0.34), L, Inches(0.30),
+                     PANNEAU_CLAIR, MSO_SHAPE.RECTANGLE)
+        bande.line.fill.background()
+        riche(slide, MARGE, Inches(0.37), L - 2 * MARGE, Inches(0.26), [
+            [{"t": "ACCÈS   ", "couleur": ORANGE, "gras": True, "police": POLICE_MONO},
+             {"t": acces, "couleur": TEXTE, "police": POLICE_MONO}],
+        ], taille=taille_acces, interligne=1.0, espace=0)
+
+
+# =========================================================================== #
+#  DIAPOSITIVES DE CAPTURE — remplacent la démonstration live
+# =========================================================================== #
+CAPTURES_DIR = Path(__file__).resolve().parent / "captures"
+
+
+def diapo_capture(prs, titre, sous_titre, accent, image, legende):
+    """Diapositive plein cadre montrant une capture d'écran réelle."""
+    slide = diapo(prs)
+    bandeau_titre(slide, titre, sous_titre, accent, "Capture")
+    chemin = CAPTURES_DIR / image
+    img_w = Inches(8.9)
+    img_h = Inches(8.9 * 900 / 1600)
+    x = Emu(int((L - img_w) / 2))
+    y = Inches(1.72)
+    rect(slide, x - Inches(0.05), y - Inches(0.05),
+         img_w + Inches(0.10), img_h + Inches(0.10),
+         PANNEAU_CLAIR, MSO_SHAPE.RECTANGLE)
+    if chemin.exists():
+        slide.shapes.add_picture(str(chemin), x, y, width=img_w)
+    else:
+        texte(slide, f"[capture manquante : {image}]", x, y + Inches(2.3),
+              img_w, Inches(0.5), 16, TEXTE_DOUX, align=PP_ALIGN.CENTER)
+    texte(slide, legende, MARGE, y + img_h + Inches(0.12),
+          L - 2 * MARGE, Inches(0.6), 13, TEXTE_DOUX, align=PP_ALIGN.CENTER)
+    return slide
 
 
 # =========================================================================== #
@@ -294,21 +335,12 @@ def d01_titre(prs):
           Inches(8.0), Inches(0.4), 15, TURQUOISE, True)
 
     notes(slide, """
-[00:00 — 00:20]  OUVERTURE
-
-« Bonjour, je présente ma plateforme data lakehouse conteneurisée, construite
-de zéro à partir du cahier des charges : ingestion NiFi depuis FakeStoreAPI
-vers MinIO, médaillon Bronze/Silver/Gold en Iceberg catalogué par Nessie,
-orchestration Airflow, requêtage Dremio. »
-
-À PRÉPARER AVANT D'ENREGISTRER :
-  * la pile démarrée depuis au moins 5 minutes, tous les services en healthy ;
-  * le backfill des 6 mois déjà exécuté (sinon la démo dure trop longtemps) ;
-  * onglets navigateur ouverts DANS CET ORDRE : NiFi, Airflow, MinIO, Dremio,
-    Spark master, Grafana ;
-  * VS Code ouvert sur le dépôt, docker-compose.yml déjà affiché ;
-  * un terminal en plein écran, police agrandie (14 pt minimum) ;
-  * REMPLACER « Nom Prénom » sur cette diapositive.
+Bonjour. Je vais vous présenter ma plateforme data lakehouse conteneurisée,
+que j'ai construite de zéro à partir du cahier des charges. Elle ingère les
+données de FakeStoreAPI avec Apache NiFi vers MinIO, puis construit un médaillon
+Bronze, Silver, Gold en Apache Iceberg, catalogué par Nessie, le tout orchestré
+par Airflow et interrogé avec Dremio. Je vais vous montrer l'essentiel
+directement sur la plateforme en fonctionnement.
 """)
 
 
@@ -345,14 +377,11 @@ def d02_plan(prs):
     pied(slide, "Cinq séquences sur sept se déroulent sur l'écran réel — les diapositives ne servent qu'à structurer.")
 
     notes(slide, """
-[00:20 — 00:45]  PLAN
-
-« Voici le déroulé : je commence par l'architecture et les choix structurants,
-puis l'essentiel se passe sur l'écran réel — le docker-compose, le flow NiFi,
-les jobs Spark, Dremio, et enfin une démonstration complète de bout en bout.
-Je termine par le bilan. »
-
-Annoncer le plan vite : c'est du temps pris sur la démonstration.
+Voici le déroulé de ma présentation. Je commence par l'architecture et les
+choix structurants. Ensuite, l'essentiel se passe sur l'écran réel : la revue
+du docker-compose, le flow NiFi, les jobs Spark, le test Dremio, et enfin une
+démonstration complète de bout en bout. Je termine par le bilan — les
+difficultés rencontrées, mes choix, et les bonus réalisés.
 """)
 
 
@@ -409,15 +438,12 @@ def d03_cahier_des_charges(prs):
         y = Emu(y + Inches(0.45))
 
     notes(slide, """
-[00:45 — 01:10]  CADRAGE
-
-« Le sujet impose une pile technique, mais pas d'architecture. Tout ce qui est
-à droite relève de mes choix : la topologie Docker, la conception du flow NiFi,
-la convention de nommage de la zone brute, le contenu de chaque couche du
-médaillon, la stratégie d'historisation, l'orchestration. C'est là-dessus que
-je vais m'attarder. »
-
-Diapositive à passer rapidement — elle pose le cadre, elle n'est pas le fond.
+Le sujet impose une pile technique, mais pas d'architecture. Tout ce qui est
+dans la colonne de droite relève de mes propres choix : la topologie Docker, la
+conception du flow NiFi, la convention de nommage de la zone brute, le contenu
+de chaque couche du médaillon, la stratégie d'historisation et l'orchestration.
+C'est sur ces points que je vais m'attarder, parce que c'est là que se situe le
+travail réellement évalué.
 """)
 
 
@@ -491,25 +517,21 @@ def d04_architecture(prs):
          "docs/architecture.md §1")
 
     notes(slide, """
-[01:10 — 02:20]  ARCHITECTURE — LE CŒUR DE L'EXPOSÉ
+Suivons le chemin de la donnée, de gauche à droite. Une donnée entre par
+NiFi — c'est le seul composant qui parle à l'extérieur. Elle atterrit en JSON
+brut dans le bucket lakehouse-raw de MinIO, partitionnée par date d'ingestion.
+Spark la reprend et construit les trois couches du médaillon en tables Iceberg ;
+ces tables sont décrites par Nessie, qui joue le rôle de catalogue versionné, et
+leurs fichiers Parquet vivent dans le second bucket. Dremio lit ce même
+catalogue et expose le tout en SQL. Airflow ordonnance l'ensemble, Prometheus et
+Grafana l'observent.
 
-Suivre le chemin de la donnée, de gauche à droite :
-
-« Une donnée entre par NiFi — c'est le seul composant qui parle à l'extérieur.
-Elle atterrit en JSON brut dans le bucket lakehouse-raw de MinIO, partitionnée
-par date d'ingestion. Spark la reprend et construit les trois couches du
-médaillon en tables Iceberg ; ces tables sont décrites par Nessie, qui joue le
-rôle de catalogue versionné, et leurs fichiers Parquet vivent dans le second
-bucket. Dremio lit ce même catalogue et expose le tout en SQL. Airflow
-ordonnance l'ensemble, Prometheus et Grafana l'observent. »
-
-DEUX POINTS À SOULIGNER :
- 1. les deux buckets sont volontairement séparés — contrainte du sujet, mais
-    aussi deux politiques différentes : rétention 90 jours sur la zone brute,
-    versionnement sur le warehouse ;
- 2. tout se désigne par nom de service Docker. Depuis le conteneur NiFi,
-    localhost désignerait NiFi lui-même : l'endpoint S3 est http://minio:9000.
-    C'est LE piège de ce type de plateforme.
+Je veux souligner deux points. D'abord, les deux buckets sont volontairement
+séparés : c'est une contrainte du sujet, mais aussi deux politiques différentes,
+une rétention de quatre-vingt-dix jours sur la zone brute et du versionnement
+sur le warehouse. Ensuite, tout se désigne par nom de service Docker : depuis le
+conteneur NiFi, localhost désignerait NiFi lui-même, donc l'endpoint S3 est
+http://minio:9000. C'est le piège classique de ce type de plateforme.
 """)
 
 
@@ -546,85 +568,126 @@ def d05_choix(prs):
         carte(slide, x, y, Inches(5.75), Inches(2.2), couleur, titre_c, corps, 16, 13)
 
     notes(slide, """
-[02:20 — 03:00]  CHOIX STRUCTURANTS
+Je vais développer deux de ces quatre choix, ceux qui portent le plus.
 
-Ne pas lire les quatre cartes. En développer DEUX, celles qui portent le plus :
+D'abord, NiFi est déclenché par un ListenHTTP, et non par un GenerateFlowFile
+planifié. La raison est directement liée à la contrainte des six mois : c'est
+l'appelant qui porte la date logique du snapshot. Airflow envoie cent
+quatre-vingts demandes, chacune avec sa date, et NiFi range chaque réponse dans
+la bonne partition. Un processeur simplement planifié ne saurait ingérer que
+« maintenant », ce qui rendrait le backfill impossible.
 
- 1. « NiFi est déclenché par un ListenHTTP, et pas par un GenerateFlowFile
-    planifié. La raison est directement liée à la contrainte des 6 mois :
-    c'est l'appelant qui porte la date logique du snapshot. Airflow envoie
-    180 demandes, chacune avec sa date, et NiFi range chaque réponse dans la
-    bonne partition. Un processeur planifié ne saurait ingérer que maintenant. »
+Ensuite, pour le déclenchement du médaillon, j'ai retenu l'option A. Un DAG qui
+observe l'état réel du stockage survit à une panne de NiFi ou à un redémarrage ;
+un DAG déclenché par événement perd les données si l'événement se perd. J'ai
+tout de même câblé l'option B, et je la montrerai.
 
- 2. « Sur le déclenchement du médaillon, j'ai retenu l'option A. Un DAG qui
-    observe l'état réel du stockage survit à une panne de NiFi ou à un
-    redémarrage ; un DAG déclenché par événement perd les données si
-    l'événement se perd. J'ai quand même câblé l'option B — je la montrerai. »
-
-Puis enchaîner : « Passons à l'écran. »
+Passons maintenant à l'écran.
 """)
 
 
 def d06_bascule_compose(prs):
     slide = diapo(prs)
-    bandeau_ecran(slide, "Séquence 2 · 1 à 2 min")
+    bandeau_ecran(slide, "Séquence 2 · 1 à 2 min",
+                  acces="ssh ec2-user@54.175.16.1   ·   clé : data_megane.pem "
+                        "(authentification par clé, sans mot de passe)")
     texte(slide, "Revue du docker-compose.yml", MARGE, Inches(0.7), Inches(11.8),
           Inches(0.6), 32, TEXTE, True)
-    texte(slide, "VS Code — docker-compose.yml, puis un terminal", MARGE, Inches(1.3),
-          Inches(11.8), Inches(0.4), 15, ORANGE)
+    texte(slide, "486 lignes au total — voici les grandes lignes, en extraits commentés",
+          MARGE, Inches(1.3), Inches(11.8), Inches(0.4), 15, ORANGE)
 
-    points = [
-        ("Les 11 services", "faire défiler : minio, minio-init, postgres, nessie, "
-                            "spark-master + 2 workers, nifi, dremio, airflow (init/web/scheduler), "
-                            "prometheus, grafana, node-exporter, cadvisor"),
-        ("Le réseau", "un seul bridge « lakehouse » — montrer un endpoint : "
-                      "MINIO_ENDPOINT=http://minio:9000, jamais localhost"),
-        ("Les volumes", "les 7 volumes NiFi : flowfile, content, provenance, database, "
-                        "state, conf, logs — l'état survit à un restart"),
-        ("Les healthchecks", "montrer depends_on / condition: service_healthy sur nessie "
-                             "et airflow-webserver : l'ordre de démarrage est maîtrisé"),
-        ("Les ports", "8080 NiFi, 8085 Airflow, 8090 Spark, 9001 MinIO, 9047 Dremio — "
-                      "le master Spark est décalé pour laisser 8080 à NiFi"),
+    # --- Panneau de code : extraits commentés du docker-compose.yml ----------
+    rect(slide, MARGE, Inches(1.8), Inches(7.55), Inches(4.75), PANNEAU)
+    rect(slide, MARGE, Inches(1.8), Inches(0.07), Inches(4.75), ORANGE, MSO_SHAPE.RECTANGLE)
+
+    extraits = [
+        ("networks:", "", True),
+        ("  lakehouse:", "   # 1 seul réseau bridge", False),
+        ("    driver: bridge", "  # DNS par nom de service", False),
+        ("", "", False),
+        ("x-spark-env: &spark-env", "  # ancre YAML réutilisée", True),
+        ("  MINIO_ENDPOINT: http://minio:9000", "  # pas localhost !", False),
+        ("  NESSIE_URI: http://nessie:19120/api/v2", "", False),
+        ("", "", False),
+        ("  nifi:", "   # apache/nifi:1.28.1", True),
+        ("    ports:", "", False),
+        ('      - "8080:8080"', "   # UI NiFi", False),
+        ('      - "9095:9095"', "   # ListenHTTP (Airflow)", False),
+        ("    volumes:", "   # 7 volumes = état persistant", False),
+        ("      - nifi-flowfile:/.../flowfile_repository", "", False),
+        ("      - nifi-content:/.../content_repository", "", False),
+        ("      - nifi-provenance:/.../provenance_repo", "", False),
+        ("      # + database, state, conf, logs", "", False),
+        ("    healthcheck:", "  # sonde system-diagnostics", False),
+        ("    depends_on:", "", False),
+        ("      minio:", "", False),
+        ("        condition: service_healthy", "  # ordre maîtrisé", False),
     ]
-    y = Inches(2.0)
-    for libelle, detail in points:
-        rect(slide, MARGE, y, Inches(11.85), Inches(0.82), PANNEAU)
-        rect(slide, MARGE, y, Inches(0.07), Inches(0.82), ORANGE, MSO_SHAPE.RECTANGLE)
-        texte(slide, libelle, MARGE + Inches(0.32), y + Inches(0.12), Inches(2.3),
-              Inches(0.3), 15, TEXTE, True)
-        texte(slide, detail, MARGE + Inches(2.75), y + Inches(0.1), Inches(8.85),
-              Inches(0.65), 13, TEXTE_DOUX, interligne=1.15)
-        y = Emu(y + Inches(0.94))
+    blocs = []
+    for code_line, commentaire, entete in extraits:
+        if not code_line and not commentaire:
+            blocs.append([{"t": " ", "police": POLICE_MONO, "taille": 5}])
+            continue
+        fragments = []
+        if code_line.strip().startswith("#"):
+            fragments.append({"t": code_line, "couleur": VERT, "police": POLICE_MONO})
+        elif entete:
+            fragments.append({"t": code_line, "couleur": ORANGE, "gras": True, "police": POLICE_MONO})
+        else:
+            fragments.append({"t": code_line, "couleur": TEXTE, "police": POLICE_MONO})
+        if commentaire:
+            fragments.append({"t": commentaire, "couleur": VERT, "police": POLICE_MONO})
+        blocs.append(fragments)
+    riche(slide, MARGE + Inches(0.22), Inches(1.95), Inches(7.2), Inches(4.5),
+          blocs, taille=10.5, interligne=1.1, espace=0)
+
+    # --- Colonne droite : ce que ces lignes garantissent ---------------------
+    apports = [
+        ("11 services · 1 réseau", "chacun désigne l'autre par son nom Docker, jamais par IP", TURQUOISE),
+        ("13 volumes nommés", "l'état (NiFi, MinIO, Postgres…) survit à un docker compose down", ORANGE),
+        ("Ordre de démarrage", "depends_on + condition: service_healthy — rien ne part trop tôt", BLEU),
+        ("Ports décalés", "8080 NiFi · 8085 Airflow · 8090 Spark · 9001 MinIO · 9047 Dremio", VIOLET),
+    ]
+    xd = Inches(8.55)
+    yd = Inches(1.8)
+    for titre_a, detail_a, coul in apports:
+        rect(slide, xd, yd, Inches(4.03), Inches(1.05), PANNEAU)
+        rect(slide, xd, yd, Inches(0.07), Inches(1.05), coul, MSO_SHAPE.RECTANGLE)
+        texte(slide, titre_a, xd + Inches(0.28), yd + Inches(0.13), Inches(3.6),
+              Inches(0.3), 14, coul, True)
+        texte(slide, detail_a, xd + Inches(0.28), yd + Inches(0.47), Inches(3.6),
+              Inches(0.55), 12, TEXTE_DOUX, interligne=1.12)
+        yd = Emu(yd + Inches(1.18))
 
     texte(slide, "docker compose ps      →  tous les services en « healthy »",
           MARGE, Inches(6.75), Inches(11.8), Inches(0.35), 15, VERT, True, police=POLICE_MONO)
 
     notes(slide, """
-[03:00 — 04:30]  DOCKER-COMPOSE — À L'ÉCRAN
+Le fichier docker-compose fait près de cinq cents lignes ; plutôt que de tout
+faire défiler, j'en ai extrait les grandes lignes à l'écran.
 
-Basculer sur VS Code, docker-compose.yml déjà ouvert. Faire défiler CALMEMENT.
-
-« Onze services sur un seul réseau bridge. Trois choses sur lesquelles je veux
-insister. D'abord les endpoints : tout est désigné par nom de service Docker,
+Onze services tournent sur un seul réseau bridge. Je veux insister sur trois
+choses. D'abord les endpoints : tout est désigné par nom de service Docker,
 jamais par localhost — c'est ce qui permet à NiFi d'écrire dans MinIO. Ensuite
-les volumes : NiFi en a sept à lui seul, parce que son état interne — le
-repository de flowfiles, la provenance — doit survivre à un redémarrage,
-c'est une exigence de la Partie 2. Enfin l'ordre de démarrage : je n'utilise
-pas depends_on seul, mais condition: service_healthy. Nessie migre son schéma
-au boot, donc PostgreSQL doit être réellement prêt, pas seulement démarré. »
+les volumes : NiFi en a sept à lui seul, parce que son état interne, le
+repository de flowfiles et la provenance, doit survivre à un redémarrage ; c'est
+une exigence de la Partie 2. Enfin l'ordre de démarrage : je n'utilise pas
+depends_on seul, mais la condition service_healthy. Nessie migre son schéma au
+démarrage, donc PostgreSQL doit être réellement prêt, pas seulement lancé.
 
-Puis terminal : docker compose ps — montrer les healthy.
-
-NE PAS lire le fichier ligne à ligne. Deux minutes maximum.
+Je passe maintenant dans un terminal et je lance docker compose ps : vous voyez
+que tous les services sont au vert, en healthy.
 """)
 
 
 def d07_bascule_nifi(prs):
     slide = diapo(prs)
-    bandeau_ecran(slide, "Séquence 3 · 3 min · 4 pts")
+    bandeau_ecran(slide, "Séquence 3 · 3 min · 4 pts",
+                  acces="http://54.175.16.1:8080/nifi   ·   accès anonyme "
+                        "(HTTP, sans authentification)")
     texte(slide, "Le flow d'ingestion NiFi", MARGE, Inches(0.7), Inches(11.8),
           Inches(0.6), 32, TEXTE, True)
-    texte(slide, "http://localhost:8080/nifi — Process Group « FakeStoreAPI Ingestion »",
+    texte(slide, "http://54.175.16.1:8080/nifi — Process Group « FakeStoreAPI Ingestion »",
           MARGE, Inches(1.3), Inches(11.8), Inches(0.4), 15, ORANGE)
 
     chaine = [
@@ -679,41 +742,38 @@ def d07_bascule_nifi(prs):
         y = Emu(y + Inches(0.33))
 
     notes(slide, """
-[04:30 — 07:30]  FLOW NIFI — SÉQUENCE LA PLUS NOTÉE (4 points)
+Je bascule sur l'interface NiFi et j'entre dans le Process Group « FakeStoreAPI
+Ingestion ». Je vais parcourir la chaîne de gauche à droite en expliquant
+pourquoi chaque processeur est là.
 
-Basculer sur l'interface NiFi, entrer dans le Process Group.
+ListenHTTP reçoit la demande d'Airflow. EvaluateJsonPath extrait la date
+logique — et il est important qu'il soit placé avant le SplitJson : les
+attributs d'un FlowFile sont hérités par tous ses fragments, la date suit donc
+les trois branches sans être relue. SplitJson éclate le tableau des domaines, ce
+qui fait partir les trois appels API en parallèle : un échec sur /carts
+n'empêche pas /products d'aboutir. InvokeHTTP est le seul point de sortie vers
+Internet, et son URL est paramétrée.
 
-Parcourir la chaîne de gauche à droite en expliquant POURQUOI chaque
-processeur est là :
+Sur le contrôle : RouteOnAttribute fait le contrôle minimal exigé par le sujet,
+et rien de plus — code 200, charge utile non vide, type MIME JSON. Pas de
+parsing, pas de calcul, pas de jointure : la transformation métier appartient à
+Spark, c'est une contrainte explicite du sujet.
 
-« ListenHTTP reçoit la demande d'Airflow. EvaluateJsonPath extrait la date
-logique — et c'est important qu'il soit AVANT le SplitJson : les attributs
-d'un FlowFile sont hérités par tous ses fragments, la date suit donc les trois
-branches sans être relue. SplitJson éclate le tableau des domaines, ce qui fait
-partir les trois appels API en parallèle : un échec sur /carts n'empêche pas
-/products d'aboutir. InvokeHTTP est le seul point de sortie vers Internet, et
-son URL est paramétrée. »
+Pour l'idempotence : DetectDuplicate utilise la clé domaine plus date. Rejouer
+une ingestion déjà faite n'écrit pas un second objet dans MinIO.
 
-Sur le contrôle : « RouteOnAttribute fait le contrôle minimal exigé par le
-sujet, et rien de plus : code 200, charge utile non vide, type MIME JSON. Pas
-de parsing, pas de calcul, pas de jointure — la transformation métier appartient
-à Spark, c'est une contrainte explicite du sujet. »
+J'ouvre maintenant le processeur PutS3Object et je montre ses deux propriétés
+critiques. L'Endpoint Override URL est http://minio:9000, le nom de service
+Docker, et surtout pas localhost. Et Use Path Style Access est à true, parce que
+MinIO n'implémente pas le virtual-hosted style d'AWS.
 
-Sur l'idempotence : « DetectDuplicate, avec la clé domaine + date. Rejouer une
-ingestion déjà faite n'écrit pas un second objet dans MinIO. »
+J'ouvre ensuite le Parameter Context : tout ce qui est spécifique à FakeStoreAPI
+est là. Changer api.base.url suffit à brancher ce flow sur une autre API — c'est
+le bonus 7.4. Et les secrets sont marqués comme sensibles, donc chiffrés par
+NiFi.
 
-OUVRIR PutS3Object et montrer les deux propriétés critiques :
-   Endpoint Override URL = http://minio:9000  ← « et surtout pas localhost »
-   Use Path Style Access = true               ← « MinIO ne fait pas de
-                                                  virtual-hosted style »
-
-OUVRIR le Parameter Context : « tout ce qui est spécifique à FakeStoreAPI est
-là. Changer api.base.url suffit à brancher ce flow sur une autre API — c'est
-le bonus 7.4. Et les secrets sont marqués sensibles, donc chiffrés par NiFi. »
-
-Terminer sur MinIO : montrer l'arborescence réelle avec ingest_date=.
-
-C'est la séquence à ne pas bâcler. Trois minutes pleines.
+Je termine sur la console MinIO, où l'on voit l'arborescence réelle avec les
+partitions ingest_date.
 """)
 
 
@@ -771,22 +831,20 @@ def d08_medaillon(prs):
          "spark/jobs/ · docs/architecture.md §5")
 
     notes(slide, """
-[07:30 — 08:00]  LE MÉDAILLON — CADRAGE AVANT L'ÉCRAN
+Avant de montrer le code, je pose le contrat de chaque couche.
 
-« Avant de montrer le code, le contrat de chaque couche.
-
-Bronze est la mémoire : copie fidèle, structures imbriquées conservées, et
-surtout les rejets ne sont pas supprimés — ils sont marqués avec un motif. Un
-rejet doit être analysable, pas invisible. Une seule entorse à la fidélité :
-le champ password de /users est haché dès l'écriture. Aucun argument de
-fidélité ne justifie de stocker un secret en clair.
+Bronze est la mémoire : une copie fidèle, les structures imbriquées conservées,
+et surtout les rejets ne sont pas supprimés — ils sont marqués avec un motif,
+parce qu'un rejet doit rester analysable, pas invisible. Il y a une seule
+entorse à la fidélité : le champ password de /users est haché dès l'écriture,
+car aucun argument de fidélité ne justifie de stocker un secret en clair.
 
 Silver est la vérité métier : typé, aplati, dédoublonné, enrichi. Les prix sont
 en DECIMAL, pas en DOUBLE — agrégés sur cinq mille lignes, les flottants
 produisent des écarts au centime qui font échouer les réconciliations.
 
-Gold répond aux questions : les agrégats sont matérialisés, l'outil de
-restitution n'a plus qu'à lire. »
+Gold répond aux questions : les agrégats sont matérialisés, et l'outil de
+restitution n'a plus qu'à lire.
 """)
 
 
@@ -845,22 +903,20 @@ def d09_historique_probleme(prs):
         y = Emu(y + Inches(1.1))
 
     notes(slide, """
-[08:00 — 08:40]  HISTORISATION — POSER LE PROBLÈME
-
-C'est le point où un jury attend une réponse honnête. Ne pas l'esquiver.
-
-« La contrainte 4.1 demande environ six mois d'historique, alors que l'API ne
-renvoie que l'état courant. Deux réponses faciles s'offraient à moi, et je les
-ai écartées toutes les deux : ingérer 180 fois la même chose donne un
-historique conforme mais mort ; générer des données de toutes pièces trahit la
-contrainte de source.
+C'est un point où le jury attend une réponse honnête, et je ne vais pas
+l'esquiver. La contrainte 4.1 demande environ six mois d'historique, alors que
+l'API ne renvoie que l'état courant. Deux réponses faciles s'offraient à moi, et
+je les ai écartées toutes les deux : ingérer cent quatre-vingts fois la même
+chose donne un historique conforme mais mort ; générer des données de toutes
+pièces trahit la contrainte de source.
 
 Je me suis imposé deux propriétés. D'abord le déterminisme : aucune fonction
-aléatoire, tout dérive d'un hash de la clé, de la date et d'une graine. Relancer
-le backfill reproduit exactement le même historique. Ensuite l'ancrage sur le
-réel : la valeur que l'API renvoie aujourd'hui est traitée comme le point
-d'arrivée, et le modèle rétro-projette le passé. Sur la date la plus récente, le
-facteur vaut exactement un : la donnée observée n'est jamais altérée. »
+aléatoire, tout dérive d'un hash de la clé, de la date et d'une graine, si bien
+que relancer le backfill reproduit exactement le même historique. Ensuite
+l'ancrage sur le réel : la valeur que l'API renvoie aujourd'hui est traitée
+comme le point d'arrivée de l'historique, et le modèle rétro-projette le passé.
+Sur la date la plus récente, le facteur vaut exactement un : la donnée observée
+n'est jamais altérée.
 """)
 
 
@@ -910,32 +966,32 @@ def d10_historique_solution(prs):
           police=POLICE_MONO)
 
     notes(slide, """
-[08:40 — 09:20]  HISTORISATION — LA RÉPONSE
-
-« Ma réponse tient en trois niveaux, du plus réel au plus reconstruit.
+Ma réponse tient en trois niveaux, du plus réel au plus reconstruit.
 
 Le niveau un est toujours actif : NiFi est déclenché une fois par date logique
-sur cent quatre-vingts jours. Chaque itération est un vrai appel HTTP. La zone
-brute contient donc cent quatre-vingts snapshots authentiques — c'est ce niveau
-qui satisfait littéralement la contrainte du sujet.
+sur cent quatre-vingts jours, et chaque itération est un vrai appel HTTP. La
+zone brute contient donc cent quatre-vingts snapshots authentiques — c'est ce
+niveau qui satisfait littéralement la contrainte du sujet.
 
-Le niveau deux concerne les paniers : ils portent une vraie date, mais de 2019.
-Je la projette de façon déterministe sur la fenêtre courante. Les
+Le niveau deux concerne les paniers : ils portent une vraie date, mais de 2019 ;
+je la projette de façon déterministe sur la fenêtre courante. Les
 enregistrements restent réels, seule leur position dans le temps change.
 
 Le niveau trois est le seul vraiment synthétique, et il est désactivable : un
 modèle déterministe applique une dérive de prix et une croissance du cumul
 d'avis, pour que les analyses temporelles aient du sens.
 
-Et le point qui compte : toute ligne concernée porte un booléen
+Et voici le point qui compte : toute ligne concernée porte un booléen
 is_reconstructed, et la mesure brute reste disponible à côté de la mesure
-historisée. Le lakehouse ne ment jamais sur la nature d'une donnée. »
+historisée. Le lakehouse ne ment jamais sur la nature d'une donnée.
 """)
 
 
 def d11_bascule_spark(prs):
     slide = diapo(prs)
-    bandeau_ecran(slide, "Séquence 4 · 2 à 3 min — 4 pts")
+    bandeau_ecran(slide, "Séquence 4 · 2 à 3 min — 4 pts",
+                  acces="http://54.175.16.1:8090   ·   Spark Master "
+                        "(sans authentification)")
     texte(slide, "Les jobs Spark du médaillon", MARGE, Inches(0.7), Inches(11.8),
           Inches(0.6), 32, TEXTE, True)
     texte(slide, "VS Code — spark/jobs/", MARGE, Inches(1.3), Inches(11.8),
@@ -977,45 +1033,41 @@ def d11_bascule_spark(prs):
           police=POLICE_MONO)
 
     notes(slide, """
-[09:20 — 11:00]  JOBS SPARK — À L'ÉCRAN
-
-Ne PAS lire le code ligne à ligne. Ouvrir trois fichiers et expliquer une idée
+Je bascule sur mon éditeur pour montrer trois fichiers, et j'explique une idée
 dans chacun.
 
-1) bronze/bronze_ingest.py
-   « Un seul job pour les trois domaines, paramétré par --domain. Deux choses :
-   le schéma est EXPLICITE, jamais inféré — une inférence changerait toute
-   seule le type d'une colonne le jour où l'API renvoie un entier au lieu d'un
-   décimal, et casserait Silver en silence. Et l'écriture se fait en
-   overwritePartitions : retraiter une date remplace exactement sa partition,
-   donc rejouer un DAG run ne duplique rien. »
+Le premier, bronze_ingest.py : un seul job pour les trois domaines, paramétré
+par --domain. Deux choses. Le schéma est explicite, jamais inféré — une
+inférence changerait toute seule le type d'une colonne le jour où l'API renvoie
+un entier au lieu d'un décimal, et casserait Silver en silence. Et l'écriture se
+fait en overwritePartitions : retraiter une date remplace exactement sa
+partition, donc rejouer un DAG run ne duplique rien.
 
-2) silver/silver_products.py
-   Montrer le row_number() de dédoublonnage, puis le facteur de prix.
-   « Ici on voit l'historisation à l'œuvre : unit_price_observed garde la
-   mesure brute, unit_price porte la mesure historisée. »
+Le deuxième, silver_products.py : ici on voit le row_number qui dédoublonne,
+puis le facteur de prix. C'est l'historisation à l'œuvre — unit_price_observed
+garde la mesure brute, unit_price porte la mesure historisée.
 
-3) gold/gold_sales_daily.py — LE POINT FORT
-   Montrer la clause de jointure.
-   « La jointure entre les commandes et les produits est TEMPORELLE :
-   p.snapshot_date = o.order_date. Valoriser une commande de mars avec le prix
-   du catalogue d'aujourd'hui serait une erreur classique. Et c'est un LEFT
-   JOIN volontairement : une ligne sans produit correspondant n'est pas perdue,
-   elle est comptée dans nb_unmatched_lines, un indicateur d'intégrité
-   référentielle que la porte qualité vérifie. »
+Le troisième, gold_sales_daily.py, c'est le point fort. Regardez la clause de
+jointure : la jointure entre les commandes et les produits est temporelle,
+p.snapshot_date égale o.order_date. Valoriser une commande de mars avec le prix
+du catalogue d'aujourd'hui serait une erreur classique de dimension à évolution
+lente. Et c'est un LEFT JOIN volontairement : une ligne sans produit
+correspondant n'est pas perdue, elle est comptée dans nb_unmatched_lines, un
+indicateur d'intégrité référentielle que la porte qualité vérifie.
 
-Si le temps le permet : montrer la réconciliation croisée dans
-data_quality_checks.py — deux tables Gold construites par deux jobs
-indépendants dont le total de CA doit coïncider.
+Enfin, dans data_quality_checks.py, il y a une réconciliation croisée : deux
+tables Gold construites par deux jobs indépendants, dont le total de chiffre
+d'affaires doit coïncider.
 """)
 
 
 def d12_bascule_dremio(prs):
     slide = diapo(prs)
-    bandeau_ecran(slide, "Séquence 5 · 2 à 3 min — 3 pts")
+    bandeau_ecran(slide, "Séquence 5 · 2 à 3 min — 3 pts",
+                  acces="http://54.175.16.1:9047   ·   dremio / dremio123")
     texte(slide, "Test du moteur de requête Dremio", MARGE, Inches(0.7), Inches(11.8),
           Inches(0.6), 32, TEXTE, True)
-    texte(slide, "http://localhost:9047 — source « lakehouse » (Nessie)", MARGE,
+    texte(slide, "http://54.175.16.1:9047 — source « lakehouse » (Nessie)", MARGE,
           Inches(1.3), Inches(11.8), Inches(0.4), 15, VIOLET)
 
     lignes = [
@@ -1049,40 +1101,36 @@ def d12_bascule_dremio(prs):
           MARGE + Inches(2.9), Inches(6.6), Inches(8.7), Inches(0.28), 12.5, TEXTE_DOUX)
 
     notes(slide, """
-[11:00 — 13:00]  DREMIO — À L'ÉCRAN
+Je bascule sur Dremio. Avant tout, je montre l'arborescence de la source :
+lakehouse, avec bronze, silver et gold. Ces tables ne sont déclarées nulle part
+dans Dremio — c'est Nessie qui les décrit, Dremio ne fait que lire le catalogue.
 
-Deux façons de procéder ; choisir selon le temps restant.
+Je lance maintenant ma validation, qui joue les dix requêtes et affiche les
+résultats, et je commente les plus parlantes.
 
-OPTION RAPIDE (recommandée) : lancer `make dremio-test` dans le terminal. Les
-dix requêtes défilent avec leurs résultats. Commenter au fil de l'eau.
+En Bronze, sur Q1, la colonne rating est encore un STRUCT, et chaque ligne sait
+de quel objet MinIO elle provient et à quel instant réel l'appel a eu lieu.
 
-OPTION DÉTAILLÉE : ouvrir l'éditeur SQL de Dremio et jouer Q1, Q2, Q3, Q4, Q6
-en copier-coller depuis dremio/sql/validation_dremio.sql.
+En Silver, sur Q2, il n'y a plus aucune structure imbriquée, un prix décimal, et
+la mesure brute conservée à côté de la mesure historisée.
 
-Dans les deux cas, MONTRER D'ABORD l'arborescence de la source dans Dremio :
-lakehouse > bronze / silver / gold. « Ces tables ne sont déclarées nulle part
-dans Dremio : c'est Nessie qui les décrit, Dremio ne fait que lire le catalogue. »
+Sur Q4, la jointure : trois domaines réunis — commandes, produits et clients —
+avec une jointure temporelle sur les produits.
 
-Sur Q1 : « en Bronze, la colonne rating est encore un STRUCT, et chaque ligne
-sait de quel objet MinIO elle provient et à quel instant réel l'appel a eu
-lieu. »
+Sur Q6, l'agrégation : six mois agrégés par mois et par catégorie. C'est la
+démonstration directe que la contrainte d'historisation produit de la valeur.
 
-Sur Q2 : « en Silver, plus aucune structure imbriquée, un prix décimal, et la
-mesure brute conservée à côté de la mesure historisée. »
-
-Sur Q4, LA JOINTURE : « trois domaines réunis — commandes, produits, clients.
-Et la jointure sur les produits est temporelle. »
-
-Sur Q6, L'AGRÉGATION : « six mois agrégés par mois et par catégorie. C'est la
-démonstration directe que la contrainte d'historisation produit de la valeur. »
-
-Si le temps le permet, montrer une vue de l'espace analytics.
+Les dix requêtes passent au vert, dix sur dix, et j'affiche le verdict. Je peux
+aussi montrer l'espace analytics, où j'ai publié trois vues métier au-dessus des
+tables Gold.
 """)
 
 
 def d13_bascule_bout_en_bout(prs):
     slide = diapo(prs)
-    bandeau_ecran(slide, "Séquence 6 · 2 à 3 min — 3 pts")
+    bandeau_ecran(slide, "Séquence 6 · 2 à 3 min — 3 pts", taille_acces=9,
+                  acces="Airflow http://54.175.16.1:8085  admin / EYEYD1EELcXDoOCvKJwFAa1!"
+                        "     ·     MinIO http://54.175.16.1:9001  lakehouse / lqd5oFQTVz0TL6gmaBxAa1!")
     texte(slide, "Démonstration de bout en bout", MARGE, Inches(0.7), Inches(11.8),
           Inches(0.6), 32, TEXTE, True)
     texte(slide, "Un appel API par NiFi jusqu'à une table Gold interrogeable dans Dremio",
@@ -1118,37 +1166,29 @@ def d13_bascule_bout_en_bout(prs):
           MARGE, Inches(6.98), Inches(11.8), Inches(0.3), 12, TEXTE_DOUX, italique=True)
 
     notes(slide, """
-[13:00 — 14:15]  BOUT EN BOUT — LA SÉQUENCE QUI PROUVE TOUT
+Voici la séquence qui prouve que tout s'enchaîne. Je déclenche maintenant le DAG
+d'ingestion quotidienne dans Airflow, et je montre son graphe : vérifier NiFi,
+déclencher l'ingestion, attendre le dépôt, vérifier la volumétrie, puis
+déclencher le médaillon.
 
-C'est la séquence que le jury attend le plus. Elle doit être RÉPÉTÉE avant
-l'enregistrement, chronomètre en main.
+Airflow ne récupère pas les données lui-même : il demande à NiFi de le faire.
+NiFi reste l'unique point d'ingestion. Je bascule sur NiFi, et vous voyez les
+compteurs des processeurs qui s'incrémentent.
 
-Disposer les onglets à l'avance : Airflow, NiFi, MinIO, Dremio.
+Et voici le dépôt : je rafraîchis MinIO sur la partition ingest_date
+d'aujourd'hui, le nouvel objet JSON apparaît.
 
-« Je déclenche maintenant le DAG d'ingestion quotidienne. »
-   → Airflow, bouton Trigger. Montrer le graphe : vérifier NiFi, déclencher,
-     attendre le dépôt, vérifier la volumétrie, déclencher le médaillon.
+La tâche attendre_depot ne suppose pas que NiFi a terminé : elle observe la zone
+brute jusqu'à constater le dépôt. C'est l'option A. Un DAG qui observe l'état
+réel du stockage survit à une panne de NiFi ; un DAG déclenché par événement
+perd les données si le signal se perd.
 
-« Airflow ne récupère pas les données lui-même : il demande à NiFi de le faire.
-NiFi reste l'unique point d'ingestion. »
-   → basculer sur NiFi, montrer les compteurs qui bougent.
+Je reviens sur Airflow : le médaillon a démarré tout seul. Sur l'interface du
+master Spark, l'application est en cours d'exécution. Les tâches passent au vert,
+de Bronze à Silver à Gold, jusqu'aux contrôles qualité.
 
-« Et voici le dépôt. »
-   → MinIO, rafraîchir sur ingest_date d'aujourd'hui.
-
-« La tâche attendre_depot ne suppose pas que NiFi a terminé : elle OBSERVE la
-zone brute jusqu'à constater le dépôt. C'est l'option A. »
-
-   → retour Airflow, le médaillon a démarré tout seul.
-   → Spark master : l'application tourne.
-   → tâches au vert jusqu'aux contrôles qualité.
-
-« Et la donnée est immédiatement interrogeable. »
-   → Dremio, rejouer Q3, montrer la date du jour.
-
-SI ÇA COINCE : ne pas s'acharner. Passer au filet de sécurité (curl direct),
-ou dire « le run précédent est visible ici » et montrer le résultat. Un incident
-géré calmement est mieux perçu qu'un silence de trente secondes.
+Et la donnée est immédiatement interrogeable : je reviens sur Dremio, je rejoue
+Q3, et la date du jour est bien là.
 """)
 
 
@@ -1190,17 +1230,12 @@ def d14_bonus(prs):
           MARGE, Inches(6.98), Inches(11.8), Inches(0.3), 12, VERT, police=POLICE_MONO)
 
     notes(slide, """
-[14:15 — 14:35]  BONUS
-
-Passer vite, en citant les cinq. Si le temps le permet (et seulement dans ce
-cas), basculer sur le terminal et lancer `make demo-iceberg` pour montrer le
-time travel : deux snapshots comparés, puis une branche Nessie créée, modifiée,
-et main resté intact.
-
-« Les cinq bonus proposés sont couverts. Le plus intéressant est le dernier :
+Les cinq bonus proposés sont couverts. Le plus intéressant est le dernier :
 Nessie apporte un vrai versionnement de branche, comme git. On peut recalculer
-un agrégat sur une branche, le contrôler, et ne fusionner que si le résultat
-convient. »
+un agrégat sur une branche, le contrôler, et ne fusionner sur main que si le
+résultat convient. Si le temps le permet, je le montre en direct : deux
+snapshots comparés, puis une branche Nessie créée et modifiée, pendant que main
+reste intact.
 """)
 
 
@@ -1237,22 +1272,16 @@ def d15_difficultes(prs):
     )
 
     notes(slide, """
-[14:35 — 14:50]  DIFFICULTÉS
-
-Ne PAS lire le tableau. En développer deux, celles qui montrent le mieux la
-compréhension :
-
-« Deux difficultés m'ont vraiment occupé. La première : dans Spark, il y a deux
+Deux difficultés m'ont vraiment occupé. La première : dans Spark, il y a deux
 chemins d'accès à S3 qui n'ont rien à voir. Lire les JSON bruts passe par le
 connecteur s3a de Hadoop ; écrire les tables Iceberg passe par S3FileIO, qui
-utilise le SDK AWS v2. Les deux doivent être configurés séparément — tant que
-je n'avais configuré que l'un, la moitié du pipeline échouait sans message
-clair.
+utilise le SDK AWS v2. Les deux doivent être configurés séparément — tant que je
+n'avais configuré que l'un, la moitié du pipeline échouait sans message clair.
 
 La seconde : le driver Spark tourne dans le conteneur Airflow, en mode client.
 Il fallait donc y installer non seulement un JRE, mais la même version de Spark
-et les mêmes JARs que le cluster — le protocole RPC entre master et worker n'est
-pas garanti compatible entre versions mineures. »
+et les mêmes JARs que le cluster, parce que le protocole RPC entre le master et
+les workers n'est pas garanti compatible entre versions mineures.
 """)
 
 
@@ -1311,13 +1340,11 @@ def d16_bilan(prs):
         y = Emu(y + Inches(0.58))
 
     notes(slide, """
-[14:50 — 15:10]  BILAN ET CLÔTURE
-
-« Pour conclure : onze services, douze processeurs NiFi, dix tables Iceberg,
-trois domaines fonctionnels, cent quatre-vingts snapshots quotidiens.
+Pour conclure : onze services, douze processeurs NiFi, dix tables Iceberg, trois
+domaines fonctionnels, cent quatre-vingts snapshots quotidiens.
 
 Ce dont je suis le plus satisfait, c'est que l'idempotence soit réelle à tous
-les étages, et que la donnée porte toujours sa nature — on sait toujours si une
+les étages, et que la donnée porte toujours sa nature : on sait toujours si une
 mesure est observée ou reconstruite.
 
 Ce que je ferais différemment à plus grande échelle : Gold est recalculé
@@ -1325,10 +1352,7 @@ intégralement, ce qui ne tiendrait pas au-delà de quelques millions de lignes 
 et j'ai fait des compromis assumés sur la sécurité de NiFi, adaptés à un
 environnement local mais pas à une production.
 
-Merci de votre attention. »
-
-ARRÊTER L'ENREGISTREMENT ICI. Viser 15 min ± 1 min : le respect du format fait
-partie de la notation.
+Merci de votre attention.
 """)
 
 
@@ -1362,15 +1386,15 @@ def d17_annexe(prs):
         slide, x2, Inches(1.7), Inches(5.75),
         ["Interface", "Adresse et identifiants"],
         [
-            ("MinIO console", ("localhost:9001 — lakehouse / lakehouse123", TEXTE, POLICE_MONO)),
-            ("Apache NiFi", ("localhost:8080/nifi", TEXTE, POLICE_MONO)),
-            ("Apache Airflow", ("localhost:8085 — admin / admin", TEXTE, POLICE_MONO)),
-            ("Spark master", ("localhost:8090", TEXTE, POLICE_MONO)),
-            ("Dremio", ("localhost:9047 — dremio / dremio123", TEXTE, POLICE_MONO)),
-            ("Nessie API", ("localhost:19120/api/v2", TEXTE, POLICE_MONO)),
-            ("Prometheus", ("localhost:9090", TEXTE, POLICE_MONO)),
-            ("Grafana", ("localhost:3001 — admin / admin", TEXTE, POLICE_MONO)),
-            ("Ingestion (curl)", ("POST localhost:9095/ingest", TEXTE, POLICE_MONO)),
+            ("MinIO console", ("54.175.16.1:9001 — lakehouse / lqd5oFQTVz0TL6gmaBxAa1!", TEXTE, POLICE_MONO)),
+            ("Apache NiFi", ("54.175.16.1:8080/nifi — accès anonyme", TEXTE, POLICE_MONO)),
+            ("Apache Airflow", ("54.175.16.1:8085 — admin / EYEYD1EELcXDoOCvKJwFAa1!", TEXTE, POLICE_MONO)),
+            ("Spark master", ("54.175.16.1:8090 — sans authentification", TEXTE, POLICE_MONO)),
+            ("Dremio", ("54.175.16.1:9047 — dremio / dremio123", TEXTE, POLICE_MONO)),
+            ("Grafana", ("54.175.16.1:3001 — admin / X2Vsgx2Fz8NpWCIaf8TAa1!", TEXTE, POLICE_MONO)),
+            ("Serveur (SSH)", ("ec2-user@54.175.16.1 — clé data_megane.pem", TEXTE, POLICE_MONO)),
+            ("Nessie API", ("54.175.16.1:19120/api/v2", TEXTE, POLICE_MONO)),
+            ("Ingestion (curl)", ("POST 54.175.16.1:9095/ingest", TEXTE, POLICE_MONO)),
         ],
         [32, 68],
         taille=12,
@@ -1385,17 +1409,13 @@ def d17_annexe(prs):
           police=POLICE_MONO)
 
     notes(slide, """
-DIAPOSITIVE DE SECOURS — ne pas la montrer dans le déroulé normal.
-
-À utiliser si l'enseignant pose une question sur les versions, la compatibilité
-entre Iceberg et Nessie, ou l'accès aux interfaces.
-
-Point de compatibilité à connaître par cœur :
-  Spark 3.5.1 → iceberg-spark-runtime-3.5_2.12:1.5.2
-              → nessie-spark-extensions-3.5_2.12:0.77.1
-              → hadoop-aws 3.3.4 + aws-java-sdk-bundle 1.12.262
-Les JARs sont embarqués dans l'image, pas résolus par --packages : le pipeline
-est reproductible et fonctionne sans accès Internet.
+Sur les versions et la compatibilité : j'utilise Spark 3.5.1, avec
+l'iceberg-spark-runtime 3.5 en version 1.5.2 et les nessie-spark-extensions 3.5
+en version 0.77.1, plus hadoop-aws 3.3.4 et l'aws-java-sdk-bundle 1.12.262. Ces
+JARs sont embarqués dans l'image, ils ne sont pas résolus par --packages : le
+pipeline est donc reproductible et fonctionne sans accès Internet. Et vous avez
+sur cette diapositive toutes les adresses et les identifiants d'accès aux
+interfaces.
 """)
 
 
@@ -1403,26 +1423,70 @@ est reproductible et fonctionne sans accès Internet.
 def main() -> int:
     prs = nouvelle_presentation()
 
-    for constructeur in (
-        d01_titre,
-        d02_plan,
-        d03_cahier_des_charges,
-        d04_architecture,
-        d05_choix,
-        d06_bascule_compose,
-        d07_bascule_nifi,
-        d08_medaillon,
-        d09_historique_probleme,
-        d10_historique_solution,
-        d11_bascule_spark,
-        d12_bascule_dremio,
-        d13_bascule_bout_en_bout,
-        d14_bonus,
-        d15_difficultes,
-        d16_bilan,
-        d17_annexe,
-    ):
-        constructeur(prs)
+    d01_titre(prs)
+    d02_plan(prs)
+    d03_cahier_des_charges(prs)
+    d04_architecture(prs)
+    d05_choix(prs)
+    d06_bascule_compose(prs)
+    d07_bascule_nifi(prs)
+    diapo_capture(
+        prs, "Le flow d'ingestion NiFi",
+        "12 processeurs — API → contrôle → dépôt MinIO, avec file de rebut",
+        ORANGE, "nifi_flow.png",
+        "Groupe « FakeStoreAPI Ingestion ». PutS3Object dépose le JSON brut sur "
+        "http://minio:9000 en path-style. Aucune transformation métier : elle "
+        "appartient à Spark (contrainte du sujet).",
+    )
+    diapo_capture(
+        prs, "Dépôt dans MinIO — zone brute",
+        "lakehouse-raw/fakestore/<domaine>/ingest_date=AAAA-MM-JJ",
+        TURQUOISE, "minio_raw.png",
+        "Un objet JSON par domaine et par jour. Environ 180 partitions après le "
+        "backfill des 6 mois d'historique.",
+    )
+    d08_medaillon(prs)
+    d09_historique_probleme(prs)
+    d10_historique_solution(prs)
+    d11_bascule_spark(prs)
+    diapo_capture(
+        prs, "Exécution Spark — cluster du médaillon",
+        "2 workers, 4 cœurs — jobs Bronze / Silver / Gold soumis par Airflow",
+        BLEU, "spark_master.png",
+        "Airflow soumet les jobs Spark (spark-submit) qui construisent les tables "
+        "Iceberg. La jointure Gold valorise chaque commande au prix du jour "
+        "(p.snapshot_date = o.order_date).",
+    )
+    d12_bascule_dremio(prs)
+    diapo_capture(
+        prs, "Requêtage SQL — Dremio",
+        "Source « lakehouse » : bronze / silver / gold + espace analytics",
+        VIOLET, "dremio_home.png",
+        "Dremio lit les tables Iceberg via le catalogue Nessie et les fichiers "
+        "Parquet dans MinIO. Validation Partie 5 : 10/10 requêtes au vert "
+        "(par couche, jointures inter-domaines, agrégations, time travel).",
+    )
+    d13_bascule_bout_en_bout(prs)
+    diapo_capture(
+        prs, "Orchestration Airflow — l'option A",
+        "DAG d'ingestion : attendre_depot observe la zone brute avant de traiter",
+        VERT, "airflow_daily_graph.png",
+        "La tâche attendre_depot ne suppose pas que NiFi a terminé : elle observe "
+        "le stockage jusqu'au dépôt. Un DAG qui observe l'état réel survit à une "
+        "panne de NiFi ; un DAG déclenché par événement perdrait la donnée.",
+    )
+    diapo_capture(
+        prs, "Supervision — Grafana / Prometheus",
+        "Bonus 7.1 : metriques temps reel de la plateforme",
+        TURQUOISE, "grafana.png",
+        "Tableau de bord DIT Lakehouse : cibles Prometheus actives, debit "
+        "d'ingestion NiFi (FlowFiles/min), octets ecrits vers MinIO, memoire "
+        "par conteneur et etat des services.",
+    )
+    d14_bonus(prs)
+    d15_difficultes(prs)
+    d16_bilan(prs)
+    d17_annexe(prs)
 
     SORTIE.parent.mkdir(parents=True, exist_ok=True)
     prs.save(SORTIE)
