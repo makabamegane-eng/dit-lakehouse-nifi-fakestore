@@ -229,7 +229,7 @@ VIEWS: List[tuple[str, str]] = [
         f"""
         SELECT order_date, category_label, nb_orders, nb_items_sold, revenue,
                avg_order_value, revenue_ma7, revenue_wow_pct, day_name, is_weekend
-        FROM {SOURCE_NAME}.gold.gold_sales_by_category_daily
+        FROM {SOURCE_NAME}.gold.gold_sales_by_category_daily AT BRANCH main
         WHERE category_slug <> 'TOTAL'
         """,
     ),
@@ -239,12 +239,12 @@ VIEWS: List[tuple[str, str]] = [
         SELECT
             YEAR(order_date)  AS annee,
             MONTH(order_date) AS mois,
-            category_label,
+            category_label    AS categorie,
             SUM(nb_orders)    AS commandes,
             SUM(nb_items_sold) AS articles,
             SUM(revenue)      AS chiffre_affaires,
             ROUND(AVG(avg_order_value), 2) AS panier_moyen
-        FROM {SOURCE_NAME}.gold.gold_sales_by_category_daily
+        FROM {SOURCE_NAME}.gold.gold_sales_by_category_daily AT BRANCH main
         WHERE category_slug <> 'TOTAL'
         GROUP BY YEAR(order_date), MONTH(order_date), category_label
         """,
@@ -255,7 +255,7 @@ VIEWS: List[tuple[str, str]] = [
         SELECT customer_id, full_name, city, customer_segment, rfm_score,
                nb_orders, lifetime_value, avg_order_value, favorite_category,
                recency_days, last_order_date
-        FROM {SOURCE_NAME}.gold.gold_customer_360
+        FROM {SOURCE_NAME}.gold.gold_customer_360 AT BRANCH main
         WHERE nb_orders > 0
         """,
     ),
