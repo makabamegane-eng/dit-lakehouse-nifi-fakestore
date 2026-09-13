@@ -99,7 +99,7 @@ PARAMETERS = [
     ("minio.region", os.environ.get("MINIO_REGION", "us-east-1"),
      "Region S3 declaree (MinIO l'ignore mais le SDK l'exige)", False),
     ("minio.access.key", os.environ.get("MINIO_ROOT_USER", "lakehouse"),
-     "Identifiant MinIO", False),
+     "Identifiant MinIO - sensible : la propriete Access Key ID de NiFi l'exige", True),
     ("minio.secret.key", os.environ.get("MINIO_ROOT_PASSWORD", "lakehouse123"),
      "Secret MinIO - parametre sensible, chiffre par NiFi", True),
     ("listen.port", os.environ.get("NIFI_LISTEN_HTTP_PORT", "9095"),
@@ -484,16 +484,16 @@ def build(builder: FlowBuilder) -> None:
 
     builder.create_processor(
         "domaine",
-        "4. extraire-domaine (EvaluateJsonPath)",
-        "org.apache.nifi.processors.standard.EvaluateJsonPath",
+        "4. extraire-domaine (ExtractText)",
+        "org.apache.nifi.processors.standard.ExtractText",
         pos(3, 0),
         properties={
-            "Destination": "flowfile-attribute",
-            "Return Type": "scalar",
-            "Path Not Found Behavior": "warn",
-            "domain": "$",
+            # SplitJson ecrit l'element de tableau tel quel ("products" sans
+            # guillemets) : ce n'est pas du JSON, donc EvaluateJsonPath echoue.
+            # ExtractText lit le contenu comme du texte et promeut le domaine.
+            "domain": "([A-Za-z]+)",
         },
-        comments="Le fragment contient la chaine du domaine : on la promeut en attribut.",
+        comments="Le fragment contient la chaine du domaine : on la promeut en attribut (lecture texte).",
     )
 
     builder.create_processor(
@@ -506,8 +506,15 @@ def build(builder: FlowBuilder) -> None:
             "HTTP URL": "#{api.base.url}/${domain}",
             "Connection Timeout": "10 secs",
             "Read Timeout": "20 secs",
-            "Include Date Header": "true",
-            "Penalize on 'No Retry'": "true",
+            "Include Date Header": "True",
+            # FakeStoreAPI est derriere Cloudflare : sans User-Agent de
+            # navigateur, la requete recoit une page de defi 403 « Just a
+            # moment ». On renseigne la propriete NATIVE Useragent d'InvokeHTTP.
+            "Useragent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
         },
         comments=(
             "Seul point de sortie du systeme vers Internet. L'URL est "
@@ -704,7 +711,7 @@ def build(builder: FlowBuilder) -> None:
     builder.connect("split", ["split"], "domaine", "1 FlowFile par domaine")
     builder.connect("split", ["failure"], "rejet", "tableau domains illisible")
     builder.connect("domaine", ["matched"], "invoke", "domaine identifie")
-    builder.connect("domaine", ["failure", "unmatched"], "rejet", "domaine absent")
+    builder.connect("domaine", ["unmatched"], "rejet", "domaine absent")
 
     builder.connect("invoke", ["Response"], "controle", "reponse HTTP")
     builder.connect("invoke", ["Retry", "No Retry", "Failure"], "reessai_api", "appel en echec")
