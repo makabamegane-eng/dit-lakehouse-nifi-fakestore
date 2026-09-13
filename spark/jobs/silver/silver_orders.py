@@ -189,7 +189,7 @@ def write_silver(spark: SparkSession, df: DataFrame) -> None:
                 "comment",
                 "Couche Silver - faits lignes de commande (grain: commande x produit)",
             )
-            .partitionedBy(F.expr("months(order_date)"))
+            .partitionedBy(F.col("order_date"))
             .create()
         )
     else:

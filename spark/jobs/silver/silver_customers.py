@@ -150,7 +150,7 @@ def write_silver(spark: SparkSession, df: DataFrame) -> None:
                 "comment",
                 "Couche Silver - dimension client conformee et minimisee (RGPD)",
             )
-            .partitionedBy(F.expr("months(snapshot_date)"))
+            .partitionedBy(F.col("snapshot_date"))
             .create()
         )
     else:

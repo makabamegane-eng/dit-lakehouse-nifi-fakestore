@@ -54,7 +54,9 @@ SILVER_TABLE = SETTINGS.silver(SILVER_TABLES["products"])
 
 def transform(spark: SparkSession, dates: list[str], end_date: str) -> DataFrame:
     """Construit la dimension produit pour les dates demandées."""
-    price_factor = price_factor_expr("id", "_ingest_date", f"date('{end_date}')")
+    # Le facteur de prix est injecte dans le SELECT final qui lit la CTE
+    # « base », ou la colonne s'appelle product_id (id y a ete renomme).
+    price_factor = price_factor_expr("product_id", "_ingest_date", f"date('{end_date}')")
     review_growth = review_growth_expr("_ingest_date", f"date('{end_date}')")
 
     return spark.sql(
@@ -159,7 +161,7 @@ def write_silver(spark: SparkSession, df: DataFrame) -> None:
             # Partition mensuelle : 180 partitions journalières pour ~20 produits
             # produiraient des fichiers Parquet minuscules. `months()` regroupe
             # en 6 partitions, taille de fichier saine, élagage encore efficace.
-            .partitionedBy(F.expr("months(snapshot_date)"))
+            .partitionedBy(F.col("snapshot_date"))
             .create()
         )
     else:
