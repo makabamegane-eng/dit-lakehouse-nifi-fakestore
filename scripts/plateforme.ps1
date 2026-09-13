@@ -71,7 +71,6 @@ switch ($Action.ToLower()) {
             "qualite"            = "Rejoue les contrôles qualité"
             "maintenance"        = "Compacte les tables Iceberg"
             "verifier"           = "Contrôle statique du projet"
-            "slides"             = "Régénère le support de soutenance"
             "reset"              = "DESTRUCTIF — supprime aussi les volumes"
             "demarrage-complet"  = "build -> up -> init -> backfill"
         }
@@ -114,7 +113,6 @@ switch ($Action.ToLower()) {
     "dremio-sql"   { python dremio/scripts/run_validation.py --only $Requete --rows 25 }
     "prerequis"    { python scripts/verifier_prerequis.py }
     "verifier"     { python scripts/verifier_projet.py }
-    "slides"       { python slides/generer_slides.py }
 
     "backfill" {
         Airflow-Trigger "lakehouse_medallion"

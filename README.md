@@ -354,7 +354,6 @@ curl -X POST http://localhost:9095/ingest -H "Content-Type: application/json" -d
 | `make maintenance` | compacte les tables Iceberg |
 | `make nifi-export` | exporte le flow NiFi en `.json` (livrable du sujet) |
 | `make verifier` | contrôle statique du projet |
-| `make slides` | régénère le support de soutenance |
 | `make reset` | **destructif** — supprime les volumes et les données |
 
 Sous Windows : `.\scripts\plateforme.ps1 <action>` — mêmes noms d'actions,
@@ -481,8 +480,8 @@ dans MinIO sont automatiquement sautées, il reprend où il s'était arrêté.
 │   └── scenario_video.md           conducteur de la soutenance 15 min
 │
 └── slides/
-    ├── generer_slides.py           génère le support (reproductible)
-    └── soutenance_lakehouse_nifi.pptx   17 diapositives + notes
+    ├── soutenance_lakehouse_nifi.pptx   support de soutenance (+ notes)
+    └── captures/                    captures des interfaces
 ```
 
 ## Modèle de données
